@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор Эротических Историй</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌹 Генератор Эротических Историй</h1>
+            <p class="subtitle">Создавайте уникальные истории с помощью искусственного интеллекта</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-indicator" id="status-indicator">
+                <span class="status-dot"></span>
+                <span id="status-text">Проверка системы...</span>
+            </div>
+            <button class="info-btn" id="stats-btn" onclick="showStats()">📊 Статистика</button>
+        </div>
+
+        <main>
+            <form id="story-form" class="story-form">
+                <div class="form-group">
+                    <label for="prompt">Основная идея истории *</label>
+                    <textarea 
+                        id="prompt" 
+                        name="prompt" 
+                        rows="3" 
+                        placeholder="Опишите основную идею или сюжет вашей истории..."
+                        required
+                        minlength="10"
+                    ></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="genre">Жанр</label>
+                        <select id="genre" name="genre">
+                            <option value="">Выберите жанр</option>
+                            <option value="Романтика">Романтика</option>
+                            <option value="Страсть">Страсть</option>
+                            <option value="Приключение">Приключение</option>
+                            <option value="Фантазия">Фантазия</option>
+                            <option value="Доминирование">Доминирование</option>
+                            <option value="Нежность">Нежность</option>
+                            <option value="Запретная любовь">Запретная любовь</option>
+                            <option value="Случайная встреча">Случайная встреча</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="length">Длина истории</label>
+                        <select id="length" name="length">
+                            <option value="short">Короткая (500-800 слов)</option>
+                            <option value="medium" selected>Средняя (1000-1500 слов)</option>
+                            <option value="long">Длинная (2000-3000 слов)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="characters">Персонажи</label>
+                    <input 
+                        type="text" 
+                        id="characters" 
+                        name="characters" 
+                        placeholder="Имена персонажей через запятую (например: Анна, Дмитрий)"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="setting">Место действия</label>
+                    <input 
+                        type="text" 
+                        id="setting" 
+                        name="setting" 
+                        placeholder="Например: Уютное кафе в центре Москвы"
+                    >
+                </div>
+
+                <details class="advanced-options">
+                    <summary>⚙️ Дополнительные настройки</summary>
+                    <div class="advanced-content">
+                        <div class="form-group">
+                            <label for="temperature">
+                                Креативность: <span id="temp-value">0.8</span>
+                            </label>
+                            <input 
+                                type="range" 
+                                id="temperature" 
+                                name="temperature" 
+                                min="0" 
+                                max="2" 
+                                step="0.1" 
+                                value="0.8"
+                                oninput="document.getElementById('temp-value').textContent = this.value"
+                            >
+                            <small>Низкое значение = более предсказуемо, высокое = более креативно</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="top_p">
+                                Top-p: <span id="topp-value">0.95</span>
+                            </label>
+                            <input 
+                                type="range" 
+                                id="top_p" 
+                                name="top_p" 
+                                min="0" 
+                                max="1" 
+                                step="0.05" 
+                                value="0.95"
+                                oninput="document.getElementById('topp-value').textContent = this.value"
+                            >
+                        </div>
+                    </div>
+                </details>
+
+                <button type="submit" class="submit-btn" id="submit-btn">
+                    ✨ Создать историю
+                </button>
+            </form>
+
+            <div class="result-container" id="result-container" style="display: none;">
+                <div class="result-header">
+                    <h2>📖 Ваша история</h2>
+                    <div class="result-actions">
+                        <button class="action-btn" onclick="copyStory()">📋 Копировать</button>
+                        <button class="action-btn" onclick="resetForm()">🔄 Создать новую</button>
+                    </div>
+                </div>
+                <div class="story-output" id="story-output"></div>
+                <div class="story-metadata" id="story-metadata"></div>
+            </div>
+
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Создаём вашу историю...</p>
+                <small>Это может занять 15-30 секунд</small>
+            </div>
+
+            <div class="error-message" id="error-message" style="display: none;"></div>
+        </main>
+
+        <footer>
+            <p>⚠️ Только для взрослых 18+</p>
+            <p>Работает на Gemma 2B с технологией RAG</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

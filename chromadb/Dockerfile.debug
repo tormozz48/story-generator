@@ -1,0 +1,22 @@
+FROM python:3.10-slim
+
+WORKDIR /chroma
+
+# Install chromadb and add diagnostic logging
+RUN pip install --no-cache-dir chromadb==0.4.22 && \
+    echo "=== Installed packages ===" && \
+    pip list | grep -E "(chromadb|numpy)" && \
+    echo "=== Testing NumPy imports ===" && \
+    python -c "import numpy as np; print(f'NumPy version: {np.__version__}'); print(f'Has np.float_: {hasattr(np, \"float_\")}'); print(f'Has np.float64: {hasattr(np, \"float64\")}')" && \
+    echo "=== Testing ChromaDB import ===" && \
+    python -c "import chromadb; print('ChromaDB import successful')" || echo "ChromaDB import failed"
+
+# Expose port
+EXPOSE 8000
+
+# Set environment variables
+ENV IS_PERSISTENT=TRUE
+ENV ANONYMIZED_TELEMETRY=FALSE
+
+# Run chromadb server
+CMD ["python", "-m", "chromadb.cli.cli", "run", "--host", "0.0.0.0", "--port", "8000", "--path", "/chroma/chroma"]
