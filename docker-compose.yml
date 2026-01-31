@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Nginx reverse proxy and static file server
@@ -54,7 +54,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 12G
+          memory: 8G
+        reservations:
+          memory: 6G
     # For M1 Mac, use the default image (already ARM64)
 
   # ChromaDB Vector Database

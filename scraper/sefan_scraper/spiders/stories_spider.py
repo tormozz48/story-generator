@@ -26,7 +26,7 @@ class SefanSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
         super(SefanSpider, self).__init__(*args, **kwargs)
         self.stories_count = 0
-        self.max_stories = int(os.getenv('MAX_STORIES', 100))
+        self.max_stories = int(os.getenv('MAX_STORIES', 10000))
         self.visited_category_urls = set()
         self.visited_story_urls = set()
         self.stories_data = {}  # Track multi-page stories {base_story_id: story_data}
