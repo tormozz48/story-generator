@@ -1,0 +1,41 @@
+{
+  "name": "@story-generator/frontend",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@emotion/cache": "^11.13.1",
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0",
+    "@hookform/resolvers": "^3.9.0",
+    "@mui/icons-material": "^5.16.7",
+    "@mui/material": "^5.16.7",
+    "@mui/material-nextjs": "^5.16.7",
+    "@story-generator/shared": "*",
+    "@tanstack/react-query": "^5.51.21",
+    "next": "^14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.52.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^20.14.11",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint-config-next": "^14.2.5",
+    "jsdom": "^24.1.1",
+    "msw": "^2.3.1",
+    "vitest": "^1.6.0",
+    "@vitejs/plugin-react": "^4.3.1"
+  }
+}

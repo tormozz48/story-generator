@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": true,
+    "strictPropertyInitialization": false,
+    "paths": {
+      "@story-generator/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test"]
+}
