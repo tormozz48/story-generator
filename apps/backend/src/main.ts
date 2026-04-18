@@ -7,9 +7,8 @@ import { AppModule } from './app.module';
 import { JsonLogger } from './common/logger/json.logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: new JsonLogger(),
-  });
+  const logger = new JsonLogger();
+  const app = await NestFactory.create(AppModule, { logger });
 
   app.use(helmet());
   app.enableCors({ origin: process.env['FRONTEND_URL'] ?? '*' });
@@ -18,7 +17,7 @@ async function bootstrap() {
   const port = process.env['PORT'] ?? 3001;
   await app.listen(port);
 
-  app.get(JsonLogger).log(`API listening on port ${port}`, 'Bootstrap');
+  logger.log(`API listening on port ${port}`, 'Bootstrap');
 }
 
 bootstrap().catch((err) => {

@@ -17,6 +17,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=installer /app/node_modules ./node_modules
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig.base.json .
 RUN npm run build --workspace=packages/shared
 RUN npm run build --workspace=apps/backend
 
@@ -26,7 +27,9 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder --chown=appuser:appgroup /app/apps/backend/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/apps/backend/drizzle ./drizzle
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=builder --chown=appuser:appgroup /app/packages/shared/dist ./packages/shared/dist
 
 USER appuser

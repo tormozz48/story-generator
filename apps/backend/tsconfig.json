@@ -9,10 +9,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "incremental": true,
-    "strictPropertyInitialization": false,
-    "paths": {
-      "@story-generator/shared": ["../../packages/shared/src/index.ts"]
-    }
+    "strictPropertyInitialization": false
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "test"]

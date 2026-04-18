@@ -11,11 +11,10 @@ import { JsonLogger } from './common/logger/json.logger';
  * an HTTP server — workers have no public port.
  */
 async function bootstrapWorker() {
-  const app = await NestFactory.createApplicationContext(AppModule, {
-    logger: new JsonLogger(),
-  });
+  const logger = new JsonLogger();
+  const app = await NestFactory.createApplicationContext(AppModule, { logger });
 
-  app.get(JsonLogger).log('Worker process started', 'Bootstrap');
+  logger.log('Worker process started', 'Bootstrap');
 
   // Keep the process alive; BullMQ workers are long-running
   process.on('SIGTERM', async () => {

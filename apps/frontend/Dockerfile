@@ -19,6 +19,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 WORKDIR /app
 COPY --from=installer /app/node_modules ./node_modules
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig.base.json .
 RUN npm run build --workspace=packages/shared
 RUN npm run build --workspace=apps/frontend
 
@@ -28,11 +29,11 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/static ./apps/frontend/.next/static
-COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/public ./apps/frontend/public
+COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/static ./.next/static
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 
 USER appuser
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "apps/frontend/server.js"]
+CMD ["node", "server.js"]
