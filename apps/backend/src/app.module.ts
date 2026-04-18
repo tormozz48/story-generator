@@ -8,6 +8,8 @@ import { HealthController } from './health.controller';
 import { DatabaseModule } from './modules/database/database.module';
 import { GenerationModule } from './modules/generation/generation.module';
 import { ImageAiModule } from './modules/image-ai/image-ai.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { RedisModule } from './modules/redis/redis.module';
 import { SafetyModule } from './modules/safety/safety.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { StoriesModule } from './modules/stories/stories.module';
@@ -44,12 +46,14 @@ import { TextAiModule } from './modules/text-ai/text-ai.module';
       }),
     }),
     DatabaseModule,
+    RedisModule,
     StorageModule,
     SafetyModule,
     TextAiModule,
     ImageAiModule,
     GenerationModule,
     StoriesModule,
+    JobsModule,
   ],
   controllers: [HealthController],
 })

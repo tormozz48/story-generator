@@ -1,0 +1,42 @@
+[
+  {
+    "scope": "https://openrouter.ai",
+    "method": "POST",
+    "path": "/api/v1/chat/completions",
+    "status": 200,
+    "response": {
+      "id": "gen-cassette-plan-001",
+      "model": "qwen/qwen-2.5-72b-instruct",
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "{\"title\":\"Ночная встреча\",\"characterSheet\":\"Анна, 24 года, высокая брюнетка с зелёными глазами, стройная, уверенная в себе\",\"styleDescription\":\"Реалистичный фотографический стиль, тёплые тона\",\"sceneOutline\":[\"Анна приходит на вечеринку и замечает незнакомца\",\"Они знакомятся и танцуют\",\"Страстное продолжение ночи\"],\"imagePrompts\":[\"Young woman at a party, photorealistic, warm lighting\",\"Two adults dancing together, intimate atmosphere, photorealistic\",\"Passionate embrace in a dimly lit room, photorealistic\"]}"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": { "prompt_tokens": 150, "completion_tokens": 120, "total_tokens": 270 }
+    }
+  },
+  {
+    "scope": "https://openrouter.ai",
+    "method": "POST",
+    "path": "/api/v1/chat/completions",
+    "status": 200,
+    "response": {
+      "id": "gen-cassette-story-001",
+      "model": "qwen/qwen-2.5-72b-instruct",
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "Анна вошла в зал, и музыка сразу окутала её со всех сторон. Она знала, что сегодня вечер будет особенным — интуиция никогда её не подводила. Взгляд скользнул по толпе и остановился на высоком мужчине у стойки бара. Тёмные волосы, уверенная осанка, взгляд, который, казалось, видел её насквозь.\n\nОна подошла, заказала коктейль. Слово за слово, улыбка за улыбкой — и вот уже они кружились в медленном танце, не замечая никого вокруг. Его руки на её талии были одновременно нежными и властными. Анна почувствовала, как сердце бьётся быстрее.\n\n— Ты часто здесь бываешь? — спросил он.\n— Достаточно редко, чтобы каждый раз было как первый, — ответила она с улыбкой.\n\nКогда они покинули клуб, город уже спал. Ночь принадлежала только им двоим."
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": { "prompt_tokens": 400, "completion_tokens": 800, "total_tokens": 1200 }
+    }
+  }
+]

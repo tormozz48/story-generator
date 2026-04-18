@@ -33,3 +33,49 @@ export const StoryGenerationResponseSchema = z.object({
 });
 
 export type StoryGenerationResponse = z.infer<typeof StoryGenerationResponseSchema>;
+
+// --- Week 2 additions ---
+
+export const StoryPlanSchema = z.object({
+  title: z.string().min(1),
+  characterSheet: z.string().min(1),
+  styleDescription: z.string().min(1),
+  sceneOutline: z.array(z.string()).min(1),
+  imagePrompts: z.array(z.string()).min(1),
+});
+
+export type StoryPlan = z.infer<typeof StoryPlanSchema>;
+
+export const StoryStatusSchema = z.enum([
+  'queued',
+  'planning',
+  'writing',
+  'imaging',
+  'done',
+  'failed',
+]);
+
+export const StorySchema = z.object({
+  id: z.string().uuid(),
+  ownerId: z.string().nullable(),
+  prompt: z.string(),
+  title: z.string().nullable(),
+  status: StoryStatusSchema,
+  targetLength: z.number().int(),
+  style: z.string(),
+  jobId: z.string().nullable(),
+  generatedText: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type StoryDto = z.infer<typeof StorySchema>;
+
+export const GenerationProgressEventSchema = z.object({
+  jobId: z.string(),
+  status: StoryStatusSchema,
+  progress: z.number().int().min(0).max(100),
+  message: z.string().optional(),
+});
+
+export type GenerationProgressEventDto = z.infer<typeof GenerationProgressEventSchema>;

@@ -77,6 +77,8 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: story-generator
       PORT: '3001'
+      OPENROUTER_TEXT_MODEL: ${OPENROUTER_TEXT_MODEL:-qwen/qwen-2.5-72b-instruct}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     ports:
       - '3001:3001'
     depends_on:
@@ -104,6 +106,8 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: story-generator
+      OPENROUTER_TEXT_MODEL: ${OPENROUTER_TEXT_MODEL:-qwen/qwen-2.5-72b-instruct}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

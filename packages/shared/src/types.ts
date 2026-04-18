@@ -9,6 +9,7 @@ export type Story = {
   targetLength: number;
   style: string;
   jobId: string | null;
+  generatedText: string | null;
   createdAt: string;
   updatedAt: string;
 };

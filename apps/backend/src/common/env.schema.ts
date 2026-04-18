@@ -20,6 +20,7 @@ export const envSchema = z.object({
   MINIO_BUCKET: z.string().min(1).default('story-generator'),
 
   OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_TEXT_MODEL: z.string().default('qwen/qwen-2.5-72b-instruct'),
   REPLICATE_API_KEY: z.string().optional(),
 
   THROTTLE_TTL: z.coerce.number().int().positive().default(3_600_000),

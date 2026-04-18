@@ -1,6 +1,9 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 
+import { SafetyModule } from '../safety/safety.module';
+import { TextAiModule } from '../text-ai/text-ai.module';
+
 import { GENERATION_QUEUE } from './generation.constants';
 import { GenerationProcessor } from './generation.processor';
 import { GenerationService } from './generation.service';
@@ -10,6 +13,8 @@ import { GenerationService } from './generation.service';
     BullModule.registerQueue({
       name: GENERATION_QUEUE,
     }),
+    SafetyModule,
+    TextAiModule,
   ],
   providers: [GenerationService, GenerationProcessor],
   exports: [GenerationService],
