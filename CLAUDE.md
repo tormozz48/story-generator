@@ -1,5 +1,32 @@
 # CLAUDE.md
 
+## Project Context
+
+**Story Generator** — PoC for an AI service that generates adult-content stories with consistent illustrations, primarily for Russian-language users. Architected to support additional languages later.
+
+**Stack:** NestJS + TypeScript backend (API + BullMQ worker processes from a single codebase), Next.js frontend, Postgres + Redis + MinIO, all in docker-compose. Text generation via OpenRouter (adapter pattern, model swappable). Image generation via Replicate. No auth for PoC (anonymous-browser-UUID cookies).
+
+**Critical constraints:** Mainstream AI APIs (Claude, OpenAI, Google, Midjourney, DALL-E, Stability hosted) are NOT usable — their ToS prohibit NSFW content. CSAM prevention must be wired up before the first real generation.
+
+**Documentation** — full design lives in `docs/`. Read relevant sections before making decisions in that area:
+
+- `docs/product.md` — vision, scope, thesis
+- `docs/constraints.md` — non-negotiables and deferred compliance work
+- `docs/architecture.md` — stack, services, modules, identity, logging
+- `docs/tooling.md` — libraries, linters, commit conventions, CI, Docker
+- `docs/frontend.md` — Next.js + MUI architecture, component structure, state management
+- `docs/pipeline.md` — generation flow, planning step, length strategy, consistency approach
+- `docs/models.md` — text and image model selection and evaluation
+- `docs/safety.md` — CSAM prevention and compliance posture
+- `docs/testing.md` — four-tier testing strategy
+- `docs/roadmap.md` — week-by-week plan, PoC scope, deferred features, open questions
+
+Check `README.md` for quick orientation.
+
+---
+
+## Behavioral Guidelines
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
