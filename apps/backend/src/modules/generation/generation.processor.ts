@@ -8,6 +8,7 @@ import Redis from 'ioredis';
 
 import * as schema from '../../db/schema';
 import { DRIZZLE } from '../database/database.module';
+import { ImageAiService } from '../image-ai/image-ai.service';
 import { REDIS_CLIENT, jobProgressChannel } from '../redis/redis.module';
 import { SafetyService } from '../safety/safety.service';
 import { UnsafePromptError } from '../safety/unsafe-prompt.error';
@@ -30,7 +31,8 @@ export class GenerationProcessor extends WorkerHost {
     @Inject(DRIZZLE) private readonly db: NodePgDatabase<typeof schema>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly safety: SafetyService,
-    private readonly textAi: TextAiService
+    private readonly textAi: TextAiService,
+    private readonly imageAi: ImageAiService
   ) {
     super();
   }
@@ -38,13 +40,13 @@ export class GenerationProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     if (job.name !== GENERATE_STORY_JOB) return;
 
-    const { storyId, prompt, targetLength } = job.data as GenerateStoryPayload;
+    const { storyId, prompt, targetLength, style } = job.data as GenerateStoryPayload;
     const jobId = job.id ?? storyId;
 
     this.logger.log(`Processing generation job ${jobId} for story ${storyId}`);
 
     try {
-      // 1. Safety check
+      // 1. Safety check on user prompt
       await this.emit(jobId, storyId, 'planning', 10, 'Проверка безопасности…');
       this.safety.checkPrompt(prompt);
 
@@ -62,18 +64,107 @@ export class GenerationProcessor extends WorkerHost {
       await this.emit(jobId, storyId, 'writing', 50, 'Пишем историю…');
       const generatedText = await this.textAi.writeStory(plan, targetLength);
 
-      // 4. ImageAi — no-op pass-through (Week 3)
-      // (imaging step skipped, progress jumps to 90)
+      // 4. Reference portrait
+      await this.emit(jobId, storyId, 'portrait', 65, 'Создаём портрет персонажа…');
+      const referencePortrait = await this.imageAi.generateReferencePortrait(
+        plan.characterSheet,
+        plan.styleDescription,
+        storyId,
+        style
+      );
 
-      // 5. Persist completed story
+      // Persist reference portrait
+      await this.db.insert(schema.images).values({
+        storyId,
+        kind: 'reference',
+        sceneIndex: null,
+        storageKey: referencePortrait.storageKey,
+        url: referencePortrait.url,
+        status: 'done',
+      });
+
+      // 5. Scene images (parallel, per-scene failure ok)
+      await this.emit(jobId, storyId, 'scenes', 75, 'Создаём иллюстрации…');
+
+      // Safety-check each image prompt before dispatching to Replicate
+      const safeImagePrompts = plan.imagePrompts.map((imagePrompt) => {
+        try {
+          this.safety.checkPrompt(imagePrompt);
+          return { prompt: imagePrompt, blocked: false };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `Image prompt ${plan.imagePrompts.indexOf(imagePrompt)} blocked: ${msg}`
+          );
+          return { prompt: imagePrompt, blocked: true };
+        }
+      });
+
+      // Only run generation for unblocked prompts; blocked ones get placeholder in DB
+      const scenePrompts = safeImagePrompts.filter((p) => !p.blocked).map((p) => p.prompt);
+
+      const sceneResults = await this.imageAi.generateSceneImages(
+        scenePrompts,
+        referencePortrait,
+        plan.styleDescription,
+        storyId,
+        style
+      );
+
+      // Re-map sceneResults back to original indices (accounting for blocked prompts)
+      const fullSceneResults: Array<{
+        url: string;
+        storageKey: string;
+        sceneIndex: number;
+        status: string;
+      }> = [];
+      let resultIdx = 0;
+      for (let i = 0; i < plan.imagePrompts.length; i++) {
+        if (safeImagePrompts[i]?.blocked) {
+          fullSceneResults.push({ url: '', storageKey: '', sceneIndex: i, status: 'failed' });
+        } else {
+          const r = sceneResults[resultIdx++];
+          if (r) {
+            fullSceneResults.push({
+              url: r.url,
+              storageKey: r.storageKey,
+              sceneIndex: i,
+              status: r.url ? 'done' : 'failed',
+            });
+          }
+        }
+      }
+
+      // Persist scene images (including failed placeholders for audit trail)
+      if (fullSceneResults.length > 0) {
+        await this.db.insert(schema.images).values(
+          fullSceneResults.map((r) => ({
+            storyId,
+            kind: 'scene' as const,
+            sceneIndex: r.sceneIndex,
+            storageKey: r.storageKey || '',
+            url: r.url || '',
+            status: r.status,
+          }))
+        );
+      }
+
+      // 6. Persist completed story text
       await this.db
         .update(schema.stories)
         .set({ generatedText, status: 'done', updatedAt: new Date() })
         .where(eq(schema.stories.id, storyId));
 
-      // 6. Done
-      await this.emit(jobId, storyId, 'done', 100, 'Готово!');
-      this.logger.log(`Generation job ${jobId} completed`);
+      // 7. Done
+      const succeededScenes = fullSceneResults.filter((r) => r.status === 'done').length;
+      await this.emit(
+        jobId,
+        storyId,
+        'done',
+        100,
+        `Готово! Создано иллюстраций: ${succeededScenes}/${plan.imagePrompts.length}`
+      );
+      this.logger.log(`Generation job ${jobId} completed (${succeededScenes} images)`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const isUnsafe = err instanceof UnsafePromptError;

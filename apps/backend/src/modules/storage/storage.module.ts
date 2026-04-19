@@ -2,7 +2,10 @@ import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 
-export const MINIO_CLIENT = Symbol('MINIO_CLIENT');
+import { MINIO_CLIENT } from './storage.constants';
+import { StorageService } from './storage.service';
+
+export { MINIO_CLIENT };
 
 @Module({
   providers: [
@@ -19,19 +22,17 @@ export const MINIO_CLIENT = Symbol('MINIO_CLIENT');
         });
       },
     },
+    StorageService,
   ],
-  exports: [MINIO_CLIENT],
+  exports: [MINIO_CLIENT, StorageService],
 })
 export class StorageModule implements OnModuleInit {
   private readonly logger = new Logger(StorageModule.name);
 
   constructor(private readonly config: ConfigService) {}
 
-  // Injected via module provider — stored separately for health check
-  private minioClient?: Client;
-
   async onModuleInit() {
-    // Health check: verify MinIO is reachable by listing buckets
+    // Health check: verify MinIO is reachable and ensure public bucket exists
     try {
       const client = new Client({
         endPoint: this.config.getOrThrow<string>('MINIO_ENDPOINT'),
@@ -46,8 +47,21 @@ export class StorageModule implements OnModuleInit {
         await client.makeBucket(bucket);
         this.logger.log(`Created MinIO bucket: ${bucket}`);
       }
-      this.logger.log('MinIO connection verified');
-      this.minioClient = client;
+
+      // Make bucket publicly readable so frontend can display images without presigned URLs
+      const publicPolicy = JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: { AWS: ['*'] },
+            Action: ['s3:GetObject'],
+            Resource: [`arn:aws:s3:::${bucket}/*`],
+          },
+        ],
+      });
+      await client.setBucketPolicy(bucket, publicPolicy);
+      this.logger.log('MinIO connection verified, bucket policy set to public read');
     } catch (err) {
       this.logger.error('MinIO health check failed', err);
       throw err;

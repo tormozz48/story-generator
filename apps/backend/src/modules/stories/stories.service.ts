@@ -1,6 +1,11 @@
-import { Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { StoryGenerationRequest } from '@story-generator/shared';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import * as schema from '../../db/schema';
@@ -66,6 +71,13 @@ export class StoriesService {
       throw new NotFoundException(`Story ${id} not found`);
     }
 
+    // Fetch associated images: reference first, then scenes ordered by index
+    const storyImages = await this.db
+      .select()
+      .from(schema.images)
+      .where(eq(schema.images.storyId, id))
+      .orderBy(asc(schema.images.createdAt));
+
     return {
       id: story.id,
       ownerId: story.ownerId,
@@ -76,6 +88,16 @@ export class StoriesService {
       style: story.style,
       jobId: story.jobId,
       generatedText: story.generatedText,
+      images: storyImages.map((img) => ({
+        id: img.id,
+        storyId: img.storyId,
+        kind: img.kind,
+        sceneIndex: img.sceneIndex,
+        storageKey: img.storageKey,
+        url: img.url,
+        status: img.status,
+        createdAt: img.createdAt.toISOString(),
+      })),
       createdAt: story.createdAt.toISOString(),
       updatedAt: story.updatedAt.toISOString(),
     };

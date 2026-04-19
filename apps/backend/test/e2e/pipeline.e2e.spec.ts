@@ -1,9 +1,12 @@
 /**
- * E2E test: full pipeline from HTTP POST through stored story, using nock cassettes.
+ * E2E test: full illustrated pipeline from HTTP POST through stored story + images.
  *
- * Record once with RECORD=true and a real OPENROUTER_API_KEY; subsequent runs replay.
- * Assertions: structure, language (Cyrillic present), length, schema validity.
- * Never asserts exact AI-generated text.
+ * OpenRouter calls use nock cassettes (record once with RECORD=true, then replay).
+ * Replicate calls are intercepted with nock in playback mode, or hit the real API in RECORD mode.
+ * MinIO uploads happen against real Testcontainers MinIO.
+ *
+ * Assertions: structure, language (Cyrillic), length, schema validity, images stored.
+ * Never asserts exact AI-generated text or image content.
  */
 import fs from 'fs';
 import path from 'path';
@@ -31,10 +34,44 @@ import { StorageModule } from '../../src/modules/storage/storage.module';
 import { StoriesModule } from '../../src/modules/stories/stories.module';
 import { TextAiModule } from '../../src/modules/text-ai/text-ai.module';
 
-const CASSETTE_PATH = path.join(__dirname, '../fixtures/openrouter-plan.json');
+const CASSETTE_PATH = path.join(__dirname, '../fixtures/pipeline-illustrated.json');
 const RECORD_MODE = process.env['RECORD'] === 'true';
 
-function loadCassette() {
+// Minimal fake PNG bytes — enough for MinIO to store; not a renderable image
+const FAKE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+);
+
+const CREATE_TABLES_SQL = `
+  CREATE TABLE IF NOT EXISTS "stories" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "owner_id" text,
+    "prompt" text NOT NULL,
+    "title" text,
+    "status" text DEFAULT 'queued' NOT NULL,
+    "target_length" integer DEFAULT 2000 NOT NULL,
+    "style" text DEFAULT 'photorealistic' NOT NULL,
+    "job_id" text,
+    "plan" jsonb,
+    "generated_text" text,
+    "error_message" text,
+    "created_at" timestamp DEFAULT now() NOT NULL,
+    "updated_at" timestamp DEFAULT now() NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS "images" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "story_id" uuid NOT NULL,
+    "kind" text NOT NULL,
+    "scene_index" integer,
+    "storage_key" text NOT NULL,
+    "url" text NOT NULL,
+    "status" text DEFAULT 'done' NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  );
+`;
+
+function loadOpenRouterCassette() {
   const cassette = JSON.parse(fs.readFileSync(CASSETTE_PATH, 'utf-8')) as Array<{
     scope: string;
     method: string;
@@ -43,13 +80,30 @@ function loadCassette() {
     response: unknown;
   }>;
   for (const entry of cassette) {
-    nock(entry.scope)
-      .post(entry.path)
-      .reply(entry.status, entry.response);
+    nock(entry.scope).post(entry.path).reply(entry.status, entry.response);
   }
 }
 
-describe('Generation pipeline (e2e)', () => {
+function setupReplicateNocks() {
+  // Reference portrait: POST to create prediction → immediately succeeded
+  nock('https://api.replicate.com')
+    .post(/\/v1\/models\/.+\/predictions/)
+    .times(4) // 1 reference + 3 scene images
+    .reply(201, {
+      id: 'pred-cassette-001',
+      status: 'succeeded',
+      output: ['https://pbxt.replicate.delivery/cassette/output.png'],
+      error: null,
+    });
+
+  // Image download from Replicate delivery CDN
+  nock('https://pbxt.replicate.delivery')
+    .get('/cassette/output.png')
+    .times(4)
+    .reply(200, FAKE_PNG, { 'Content-Type': 'image/png' });
+}
+
+describe('Generation pipeline — illustrated (e2e)', () => {
   let app: INestApplication;
   let pgContainer: StartedTestContainer;
   let redisContainer: StartedTestContainer;
@@ -57,7 +111,11 @@ describe('Generation pipeline (e2e)', () => {
 
   beforeAll(async () => {
     if (!RECORD_MODE) {
-      loadCassette();
+      loadOpenRouterCassette();
+      setupReplicateNocks();
+    } else {
+      // RECORD mode: allow all network traffic so real APIs are called
+      nock.enableNetConnect();
     }
 
     [pgContainer, redisContainer, minioContainer] = await Promise.all([
@@ -83,23 +141,7 @@ describe('Generation pipeline (e2e)', () => {
     const databaseUrl = `postgresql://story:story@localhost:${pgPort}/story_generator`;
 
     const pool = new Pool({ connectionString: databaseUrl });
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "stories" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-        "owner_id" text,
-        "prompt" text NOT NULL,
-        "title" text,
-        "status" text DEFAULT 'queued' NOT NULL,
-        "target_length" integer DEFAULT 2000 NOT NULL,
-        "style" text DEFAULT 'photorealistic' NOT NULL,
-        "job_id" text,
-        "plan" jsonb,
-        "generated_text" text,
-        "error_message" text,
-        "created_at" timestamp DEFAULT now() NOT NULL,
-        "updated_at" timestamp DEFAULT now() NOT NULL
-      );
-    `);
+    await pool.query(CREATE_TABLES_SQL);
     await pool.end();
 
     const env = {
@@ -114,10 +156,17 @@ describe('Generation pipeline (e2e)', () => {
       MINIO_ACCESS_KEY: 'minioadmin',
       MINIO_SECRET_KEY: 'minioadmin',
       MINIO_BUCKET: 'story-generator',
+      MINIO_PUBLIC_URL: `http://localhost:${minioPort}`,
       THROTTLE_TTL: '3600000',
       THROTTLE_LIMIT: '100',
-      OPENROUTER_API_KEY: RECORD_MODE ? (process.env['OPENROUTER_API_KEY'] ?? 'test-key') : 'test-key',
+      OPENROUTER_API_KEY: RECORD_MODE
+        ? (process.env['OPENROUTER_API_KEY'] ?? 'test-key')
+        : 'test-key',
       OPENROUTER_TEXT_MODEL: 'qwen/qwen-2.5-72b-instruct',
+      REPLICATE_API_KEY: RECORD_MODE
+        ? (process.env['REPLICATE_API_KEY'] ?? 'test-key')
+        : 'test-key',
+      REPLICATE_IMAGE_MODEL: 'lucataco/ip-adapter-sdxl',
     };
 
     const db = drizzle(new Pool({ connectionString: databaseUrl }), { schema });
@@ -154,22 +203,31 @@ describe('Generation pipeline (e2e)', () => {
     await Promise.all([pgContainer?.stop(), redisContainer?.stop(), minioContainer?.stop()]);
   });
 
-  it('creates a story and eventually reaches done status with Cyrillic text', async () => {
+  it('creates an illustrated story with Cyrillic text and stored images', async () => {
     const createRes = await supertest
       .default(app.getHttpServer())
       .post('/api/stories')
       .send({
         prompt: 'Страстная встреча двух взрослых людей на вечеринке в Москве',
         targetLength: 500,
+        style: 'photorealistic',
       })
       .expect(201);
 
     const { storyId } = createRes.body as { storyId: string; jobId: string };
     expect(storyId).toMatch(/^[0-9a-f-]{36}$/);
 
-    // Wait for worker to process
-    let story: { status: string; generatedText: string | null; title: string | null } | undefined;
-    for (let i = 0; i < 30; i++) {
+    // Poll until done
+    let story:
+      | {
+          status: string;
+          generatedText: string | null;
+          title: string | null;
+          images?: Array<{ kind: string; url: string; status: string; sceneIndex: number | null }>;
+        }
+      | undefined;
+
+    for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 500));
       const res = await supertest
         .default(app.getHttpServer())
@@ -179,16 +237,31 @@ describe('Generation pipeline (e2e)', () => {
       if (story?.status === 'done' || story?.status === 'failed') break;
     }
 
-    // Assert invariants, not exact text
+    // Status and text assertions
     expect(story?.status).toBe('done');
     expect(story?.generatedText).toBeTruthy();
     expect(story?.generatedText?.length).toBeGreaterThan(50);
 
-    // Must contain Cyrillic (story is in Russian)
+    // Must contain Cyrillic
     const cyrillicPattern = /[\u0400-\u04FF]/;
     expect(cyrillicPattern.test(story?.generatedText ?? '')).toBe(true);
 
     // Title should be set
     expect(story?.title).toBeTruthy();
-  }, 60_000);
+
+    // Images assertions
+    const images = story?.images ?? [];
+    expect(images.length).toBeGreaterThan(0);
+
+    // Reference portrait present
+    const ref = images.find((img) => img.kind === 'reference');
+    expect(ref).toBeDefined();
+    expect(ref?.status).toBe('done');
+    expect(ref?.url).toBeTruthy();
+    expect(ref?.sceneIndex).toBeNull();
+
+    // Scene images present
+    const scenes = images.filter((img) => img.kind === 'scene');
+    expect(scenes.length).toBeGreaterThan(0);
+  }, 90_000);
 });

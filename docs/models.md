@@ -53,14 +53,24 @@ This evaluation is Week 2 work for text and Week 3 work for images. Assumptions 
 
 ### Image
 
-*To be filled in after Week 3 evaluation.*
+> **Status: interim — pending founder review of evaluation outputs.**
+> Run `apps/backend/scripts/eval-image-models.ts` with a live Replicate API key and review
+> `evaluation/image-models/` before confirming this choice.
+> Set `REPLICATE_IMAGE_MODEL` env var to override the default.
 
-- **Chosen model:** TBD
-- **Style LoRAs in use:** TBD
-- **Consistency method:** IPAdapter (planned)
-- **Rationale:** TBD
-- **Alternatives tested:** TBD
-- **Known weaknesses:** TBD
+- **Chosen model (interim):** `stability-ai/sdxl` (latest version via Replicate deployment API)
+- **Rationale:** `lucataco/ip-adapter-sdxl` was removed from Replicate (returns 404 as of 2026-04-19). Switched to `stability-ai/sdxl` as a PoC unblock. This model supports img2img conditioning via `image` + `prompt_strength`, which provides some character continuity but is weaker than IPAdapter. A proper IPAdapter-capable NSFW model must be identified for the eval run.
+- **Style LoRAs in use:** None in PoC. Style is controlled via style preset `promptSuffix` and `negativePrompt` parameters. LoRA activation can be wired in once a model that supports it is selected.
+- **Consistency method:** IPAdapter via `image` + `ip_adapter_scale: 0.6`. Reference portrait URL is passed as `image` input. All scene images are conditioned on the same reference portrait. Style consistency is enforced by locking a single base model + preset combo per story (user selects at story creation time, cannot change mid-story).
+- **Alternatives to evaluate** (run eval script against these):
+  - SDXL NSFW fine-tune (e.g., `asiryan/reliberate-v3` — check current Replicate catalog; availability changes)
+  - Flux NSFW fine-tune (e.g., `xlabs-ai/flux-dev-realism` or a community NSFW Flux variant — higher baseline quality, IPAdapter support varies by model)
+  - Pony Diffusion XL (strong NSFW stylistic range; check if current Replicate listing supports `image` input for IPAdapter conditioning)
+- **Known weaknesses:**
+  - `lucataco/ip-adapter-sdxl` uses base SDXL with Replicate's content policy; explicit NSFW content is filtered. **This model cannot be used for production NSFW generation.** It is suitable only for PoC testing of the consistency mechanism.
+  - IPAdapter weight 0.6 is a sensible default but may need tuning per model; too high → character likeness overpowers prompt, too low → drift across scenes.
+  - Replicate model availability changes without notice; version hashes can go stale. Using the deployment API (`/v1/models/{owner}/{name}/predictions`) avoids version pinning but may introduce regressions when a model is updated. Pin to a specific version hash after confirming the chosen model via eval.
+  - Current implementation passes reference portrait URL directly to Replicate; if the reference portrait is stored in a private MinIO instance, Replicate cannot fetch it. **MINIO_PUBLIC_URL must be set to a publicly-accessible URL** in production, or presigned URLs must be generated for the reference portrait before passing to Replicate.
 
 ## Cost Profile
 

@@ -1,4 +1,11 @@
-export type StoryStatus = 'queued' | 'planning' | 'writing' | 'imaging' | 'done' | 'failed';
+export type StoryStatus =
+  | 'queued'
+  | 'planning'
+  | 'writing'
+  | 'portrait'
+  | 'scenes'
+  | 'done'
+  | 'failed';
 
 export type Story = {
   id: string;
@@ -10,6 +17,7 @@ export type Story = {
   style: string;
   jobId: string | null;
   generatedText: string | null;
+  images: import('./schemas.js').ImageDto[];
   createdAt: string;
   updatedAt: string;
 };

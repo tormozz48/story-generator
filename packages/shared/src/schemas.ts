@@ -50,10 +50,32 @@ export const StoryStatusSchema = z.enum([
   'queued',
   'planning',
   'writing',
-  'imaging',
+  'portrait',
+  'scenes',
   'done',
   'failed',
 ]);
+
+// --- Week 3 additions ---
+
+export const ImageKindSchema = z.enum(['reference', 'scene']);
+export type ImageKind = z.infer<typeof ImageKindSchema>;
+
+export const ImageStatusSchema = z.enum(['done', 'failed']);
+export type ImageStatus = z.infer<typeof ImageStatusSchema>;
+
+export const ImageSchema = z.object({
+  id: z.string().uuid(),
+  storyId: z.string().uuid(),
+  kind: ImageKindSchema,
+  sceneIndex: z.number().int().nullable(),
+  storageKey: z.string(),
+  url: z.string(),
+  status: ImageStatusSchema,
+  createdAt: z.string(),
+});
+
+export type ImageDto = z.infer<typeof ImageSchema>;
 
 export const StorySchema = z.object({
   id: z.string().uuid(),
@@ -65,6 +87,7 @@ export const StorySchema = z.object({
   style: z.string(),
   jobId: z.string().nullable(),
   generatedText: z.string().nullable(),
+  images: z.array(ImageSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -79,3 +102,95 @@ export const GenerationProgressEventSchema = z.object({
 });
 
 export type GenerationProgressEventDto = z.infer<typeof GenerationProgressEventSchema>;
+
+// --- Style presets ---
+
+export type StylePreset = {
+  id: StoryStyle;
+  label: string;
+  /** Replicate model string (owner/name) — empty string means use REPLICATE_IMAGE_MODEL env var */
+  baseModel: string;
+  /** LoRA identifiers to activate on the model (passed as lora_weights if supported) */
+  loras: string[];
+  /** Appended to every image prompt for stylistic direction */
+  promptSuffix: string;
+  negativePrompt: string;
+  sampler: string;
+  steps: number;
+  cfg: number;
+};
+
+export const STYLE_PRESETS: StylePreset[] = [
+  {
+    id: 'photorealistic',
+    label: 'Фотореализм',
+    baseModel: '',
+    loras: [],
+    promptSuffix:
+      'photorealistic, hyperrealistic, 8k photography, sharp focus, highly detailed, cinematic lighting',
+    negativePrompt:
+      'cartoon, anime, illustration, painting, sketch, deformed, blurry, bad anatomy, watermark, text, logo',
+    sampler: 'DPMSolverMultistep',
+    steps: 30,
+    cfg: 7.5,
+  },
+  {
+    id: 'anime',
+    label: 'Аниме',
+    baseModel: '',
+    loras: [],
+    promptSuffix:
+      'anime style, manga art, cel shading, vibrant colors, high quality anime illustration',
+    negativePrompt:
+      'photorealistic, photograph, 3d render, deformed, bad anatomy, extra limbs, watermark',
+    sampler: 'Euler',
+    steps: 28,
+    cfg: 7.0,
+  },
+  {
+    id: 'painterly',
+    label: 'Живопись',
+    baseModel: '',
+    loras: [],
+    promptSuffix:
+      'oil painting, painterly style, brush strokes, artistic, fine art, classical painting style',
+    negativePrompt: 'photograph, photorealistic, anime, deformed, bad anatomy, watermark, text',
+    sampler: 'DPMSolverMultistep',
+    steps: 35,
+    cfg: 8.0,
+  },
+  {
+    id: 'illustration',
+    label: 'Иллюстрация',
+    baseModel: '',
+    loras: [],
+    promptSuffix:
+      'digital illustration, concept art, detailed illustration, professional digital art',
+    negativePrompt:
+      'photograph, photorealistic, bad anatomy, deformed, watermark, text, low quality',
+    sampler: 'DPMSolverMultistep',
+    steps: 30,
+    cfg: 7.5,
+  },
+  {
+    id: 'comic',
+    label: 'Комикс',
+    baseModel: '',
+    loras: [],
+    promptSuffix:
+      'comic book art, comic style, bold lines, flat colors, graphic novel illustration',
+    negativePrompt: 'photorealistic, photograph, blurry, deformed, bad anatomy, watermark, text',
+    sampler: 'Euler',
+    steps: 25,
+    cfg: 7.0,
+  },
+];
+
+export function getStylePreset(id: string): StylePreset {
+  const preset = STYLE_PRESETS.find((p) => p.id === id);
+  if (!preset) {
+    // Fall back to photorealistic if style not found
+    return STYLE_PRESETS[0]!;
+  }
+  return preset;
+}

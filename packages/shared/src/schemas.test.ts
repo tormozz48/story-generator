@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { StoryGenerationRequestSchema, StoryPlanSchema, GenerationProgressEventSchema } from './schemas.js';
+import {
+  StoryGenerationRequestSchema,
+  StoryPlanSchema,
+  GenerationProgressEventSchema,
+} from './schemas.js';
 
 describe('StoryGenerationRequestSchema', () => {
   it('accepts a valid request', () => {
@@ -84,6 +88,17 @@ describe('GenerationProgressEventSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts portrait and scenes statuses', () => {
+    expect(
+      GenerationProgressEventSchema.safeParse({ jobId: 'j', status: 'portrait', progress: 70 })
+        .success
+    ).toBe(true);
+    expect(
+      GenerationProgressEventSchema.safeParse({ jobId: 'j', status: 'scenes', progress: 85 })
+        .success
+    ).toBe(true);
+  });
+
   it('rejects progress out of range', () => {
     expect(
       GenerationProgressEventSchema.safeParse({ jobId: 'j', status: 'done', progress: 150 }).success
@@ -92,7 +107,8 @@ describe('GenerationProgressEventSchema', () => {
 
   it('rejects invalid status', () => {
     expect(
-      GenerationProgressEventSchema.safeParse({ jobId: 'j', status: 'unknown', progress: 50 }).success
+      GenerationProgressEventSchema.safeParse({ jobId: 'j', status: 'unknown', progress: 50 })
+        .success
     ).toBe(false);
   });
 });

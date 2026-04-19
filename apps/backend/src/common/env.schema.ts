@@ -18,10 +18,15 @@ export const envSchema = z.object({
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
   MINIO_BUCKET: z.string().min(1).default('story-generator'),
+  // Public-facing base URL for MinIO (browser-accessible); no trailing slash
+  MINIO_PUBLIC_URL: z.string().default('http://localhost:9000'),
 
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_TEXT_MODEL: z.string().default('qwen/qwen-2.5-72b-instruct'),
+
   REPLICATE_API_KEY: z.string().optional(),
+  // Replicate model in "owner/name" format, e.g. "lucataco/ip-adapter-sdxl"
+  REPLICATE_IMAGE_MODEL: z.string().default('lucataco/ip-adapter-sdxl'),
 
   THROTTLE_TTL: z.coerce.number().int().positive().default(3_600_000),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(10),

@@ -1,10 +1,11 @@
 /**
  * Integration test: full HTTP → queue → worker pipeline.
  *
- * TextAiService is mocked at the NestJS provider boundary.
+ * TextAiService and ImageAiService are mocked at the NestJS provider boundary.
  * Real Postgres, Redis, MinIO via Testcontainers.
  *
- * Asserts: story created, status transitions, story readable via GET.
+ * Asserts: story created, status transitions, story readable via GET,
+ * images persisted to DB and MinIO on success, scene failure produces placeholder.
  */
 import { BullModule } from '@nestjs/bullmq';
 import { INestApplication } from '@nestjs/common';
@@ -22,6 +23,7 @@ import { HealthController } from '../../src/health.controller';
 import { DRIZZLE } from '../../src/modules/database/database.module';
 import { GenerationModule } from '../../src/modules/generation/generation.module';
 import { ImageAiModule } from '../../src/modules/image-ai/image-ai.module';
+import { ImageAiService } from '../../src/modules/image-ai/image-ai.service';
 import { JobsModule } from '../../src/modules/jobs/jobs.module';
 import { REDIS_CLIENT } from '../../src/modules/redis/redis.module';
 import { SafetyModule } from '../../src/modules/safety/safety.module';
@@ -29,7 +31,6 @@ import { StorageModule } from '../../src/modules/storage/storage.module';
 import { StoriesModule } from '../../src/modules/stories/stories.module';
 import { TextAiModule } from '../../src/modules/text-ai/text-ai.module';
 import { TextAiService } from '../../src/modules/text-ai/text-ai.service';
-
 
 const MOCK_PLAN = {
   title: 'Встреча в ночном клубе',
@@ -43,7 +44,47 @@ const MOCK_PLAN = {
   ],
 };
 
-const MOCK_STORY_TEXT = 'Анна вошла в клуб и сразу почувствовала чужой взгляд на себе...';
+const MOCK_STORY_TEXT =
+  'Анна вошла в клуб и сразу почувствовала чужой взгляд на себе...\n\nОна остановилась у входа.\n\nФинал истории.';
+
+const MOCK_REFERENCE_PORTRAIT = {
+  url: 'http://localhost:9000/story-generator/images/story-id/reference.png',
+  storageKey: 'images/story-id/reference.png',
+};
+
+const MOCK_SCENE_IMAGES = [
+  { url: 'http://minio/scene-0.png', storageKey: 'images/id/scene-0.png', sceneIndex: 0 },
+  { url: 'http://minio/scene-1.png', storageKey: 'images/id/scene-1.png', sceneIndex: 1 },
+  { url: '', storageKey: '', sceneIndex: 2 }, // simulated failure on scene 2
+];
+
+const CREATE_TABLES_SQL = `
+  CREATE TABLE IF NOT EXISTS "stories" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "owner_id" text,
+    "prompt" text NOT NULL,
+    "title" text,
+    "status" text DEFAULT 'queued' NOT NULL,
+    "target_length" integer DEFAULT 2000 NOT NULL,
+    "style" text DEFAULT 'photorealistic' NOT NULL,
+    "job_id" text,
+    "plan" jsonb,
+    "generated_text" text,
+    "error_message" text,
+    "created_at" timestamp DEFAULT now() NOT NULL,
+    "updated_at" timestamp DEFAULT now() NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS "images" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "story_id" uuid NOT NULL,
+    "kind" text NOT NULL,
+    "scene_index" integer,
+    "storage_key" text NOT NULL,
+    "url" text NOT NULL,
+    "status" text DEFAULT 'done' NOT NULL,
+    "created_at" timestamp DEFAULT now() NOT NULL
+  );
+`;
 
 describe('Stories pipeline (integration)', () => {
   let app: INestApplication;
@@ -74,25 +115,8 @@ describe('Stories pipeline (integration)', () => {
     const minioPort = minioContainer.getMappedPort(9000);
     const databaseUrl = `postgresql://story:story@localhost:${pgPort}/story_generator`;
 
-    // Create schema directly (bypassing migration runner for test speed)
     const pool = new Pool({ connectionString: databaseUrl });
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "stories" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-        "owner_id" text,
-        "prompt" text NOT NULL,
-        "title" text,
-        "status" text DEFAULT 'queued' NOT NULL,
-        "target_length" integer DEFAULT 2000 NOT NULL,
-        "style" text DEFAULT 'photorealistic' NOT NULL,
-        "job_id" text,
-        "plan" jsonb,
-        "generated_text" text,
-        "error_message" text,
-        "created_at" timestamp DEFAULT now() NOT NULL,
-        "updated_at" timestamp DEFAULT now() NOT NULL
-      );
-    `);
+    await pool.query(CREATE_TABLES_SQL);
     await pool.end();
 
     const env = {
@@ -107,10 +131,13 @@ describe('Stories pipeline (integration)', () => {
       MINIO_ACCESS_KEY: 'minioadmin',
       MINIO_SECRET_KEY: 'minioadmin',
       MINIO_BUCKET: 'story-generator',
+      MINIO_PUBLIC_URL: `http://localhost:${minioPort}`,
       THROTTLE_TTL: '3600000',
       THROTTLE_LIMIT: '100',
       OPENROUTER_API_KEY: 'test-key',
       OPENROUTER_TEXT_MODEL: 'test-model',
+      REPLICATE_API_KEY: 'test-key',
+      REPLICATE_IMAGE_MODEL: 'test/model',
     };
 
     const db = drizzle(new Pool({ connectionString: databaseUrl }), { schema });
@@ -134,11 +161,17 @@ describe('Stories pipeline (integration)', () => {
       .useValue(db)
       .overrideProvider(REDIS_CLIENT)
       .useValue(redis)
-      // Mock TextAiService at the provider boundary — do not hit real API
+      // Mock TextAiService — do not hit real API
       .overrideProvider(TextAiService)
       .useValue({
         plan: vi.fn().mockResolvedValue(MOCK_PLAN),
         writeStory: vi.fn().mockResolvedValue(MOCK_STORY_TEXT),
+      })
+      // Mock ImageAiService — do not hit real Replicate
+      .overrideProvider(ImageAiService)
+      .useValue({
+        generateReferencePortrait: vi.fn().mockResolvedValue(MOCK_REFERENCE_PORTRAIT),
+        generateSceneImages: vi.fn().mockResolvedValue(MOCK_SCENE_IMAGES),
       })
       .compile();
 
@@ -177,7 +210,7 @@ describe('Stories pipeline (integration)', () => {
     expect(res.body).toMatchObject({ error: 'unsafe_prompt' });
   });
 
-  it('GET /api/stories/:id returns story shape after processing', async () => {
+  it('GET /api/stories/:id returns story with images after processing', async () => {
     // Create story
     const createRes = await supertest
       .default(app.getHttpServer())
@@ -188,19 +221,66 @@ describe('Stories pipeline (integration)', () => {
     const { storyId } = createRes.body as { storyId: string; jobId: string };
 
     // Poll until done (worker processes async)
-    let story: { status: string; generatedText: string | null } | undefined;
+    let story:
+      | {
+          status: string;
+          generatedText: string | null;
+          images?: Array<{ kind: string; url: string; status: string }>;
+        }
+      | undefined;
     for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 500));
       const res = await supertest
         .default(app.getHttpServer())
         .get(`/api/stories/${storyId}`)
         .expect(200);
-      story = res.body as { status: string; generatedText: string | null };
-      if (story.status === 'done' || story.status === 'failed') break;
+      story = res.body as typeof story;
+      if (story?.status === 'done' || story?.status === 'failed') break;
     }
 
     expect(story?.status).toBe('done');
     expect(story?.generatedText).toBeTruthy();
+
+    // Images should be present
+    expect(Array.isArray(story?.images)).toBe(true);
+    const images = story?.images ?? [];
+
+    // Reference portrait
+    const ref = images.find((img) => img.kind === 'reference');
+    expect(ref).toBeDefined();
+    expect(ref?.url).toBeTruthy();
+    expect(ref?.status).toBe('done');
+
+    // Scene images: 2 succeeded, 1 failed (from mock)
+    const scenes = images.filter((img) => img.kind === 'scene');
+    expect(scenes).toHaveLength(3);
+    expect(scenes.filter((s) => s.status === 'done')).toHaveLength(2);
+    expect(scenes.filter((s) => s.status === 'failed')).toHaveLength(1);
+  }, 30_000);
+
+  it('GET /api/stories/:id scene failure does not fail the whole story', async () => {
+    // The mock already returns one failed scene (index 2). The story should still be 'done'.
+    const createRes = await supertest
+      .default(app.getHttpServer())
+      .post('/api/stories')
+      .send({ prompt: 'История о двух взрослых людях на отдыхе у моря' })
+      .expect(201);
+
+    const { storyId } = createRes.body as { storyId: string };
+
+    let status = '';
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const res = await supertest
+        .default(app.getHttpServer())
+        .get(`/api/stories/${storyId}`)
+        .expect(200);
+      const body = res.body as { status: string };
+      status = body.status;
+      if (status === 'done' || status === 'failed') break;
+    }
+
+    expect(status).toBe('done'); // story completes despite one scene failure
   }, 30_000);
 
   it('GET /api/stories/nonexistent returns 404', async () => {

@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 
+import { ImageAiModule } from '../image-ai/image-ai.module';
 import { SafetyModule } from '../safety/safety.module';
 import { TextAiModule } from '../text-ai/text-ai.module';
 
@@ -15,6 +16,7 @@ import { GenerationService } from './generation.service';
     }),
     SafetyModule,
     TextAiModule,
+    ImageAiModule,
   ],
   providers: [GenerationService, GenerationProcessor],
   exports: [GenerationService],

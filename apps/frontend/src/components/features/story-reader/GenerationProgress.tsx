@@ -13,7 +13,8 @@ const STATUS_LABELS: Record<StoryStatus, string> = {
   queued: 'В очереди…',
   planning: 'Составляем план…',
   writing: 'Пишем историю…',
-  imaging: 'Создаём иллюстрации…',
+  portrait: 'Создаём портрет персонажа…',
+  scenes: 'Создаём иллюстрации…',
   done: 'Готово',
   failed: 'Ошибка генерации',
 };
