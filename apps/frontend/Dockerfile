@@ -24,16 +24,17 @@ RUN npm run build --workspace=packages/shared
 RUN npm run build --workspace=apps/frontend
 
 # ── Stage 4: production ────────────────────────────────────────────────────────
+# next build --standalone already traces and bundles every required node_module
+# into .next/standalone/node_modules — no separate node_modules copy needed.
 FROM node:20-alpine AS production
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/static ./.next/static
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/apps/frontend/.next/static ./apps/frontend/.next/static
 
 USER appuser
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+CMD ["node", "apps/frontend/server.js"]
